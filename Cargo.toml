@@ -1,0 +1,72 @@
+[package]
+name = "auth-core"
+# Bewusst KEINE Workspace-Vererbung in diesem Crate.
+#
+# Dieses Crate wird aus der (privaten) AUth-App heraus als
+# `auth-crypto-core` oeffentlich gespiegelt. Ein Manifest mit
+# `version.workspace = true` und `{ workspace = true }`-Dependencies
+# laesst sich ausserhalb jenes Workspace nicht bauen ("failed to find a
+# workspace root") - der oeffentliche Krypto-Kern wuerde also nicht
+# kompilieren.
+#
+# Deshalb hier alles konkret: die oeffentliche Kopie ist WORTGLEICH
+# diese Datei plus `src/`. Kein Generieren, kein Umschreiben beim
+# Spiegeln - wer beide Staende vergleicht, bekommt einen leeren Diff.
+# Genau das ist der Sinn: nachpruefbar derselbe Code, der ausgeliefert
+# wird.
+#
+# Der Preis ist eine zweite Stelle mit Versionsangaben. Den Drift-Fall
+# (die App bumpt argon2, dieses Manifest nicht -> zwei semver-
+# inkompatible Krypto-Versionen im selben Binary) faengt im App-Repo der
+# Test `krypto_versionen_bleiben_mit_dem_workspace_synchron` ab.
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+license = "MIT"
+authors = ["AUth Team"]
+description = "Plattformneutraler Krypto-/TOTP-/Vault-Kern für AUth (WASM-fähig, kein File-IO/OS)."
+repository = "https://github.com/workbenchdigital/auth-crypto-core"
+
+# Eigene Versionslinie, absichtlich entkoppelt von der App-Version (1.0.0).
+# `src-tauri` bindet dieses Crate rein ueber `path` ein, ohne
+# Versionsangabe - die Entkopplung hat dort also keine Wirkung. 0.x ist das
+# ehrliche Semver-Signal fuer Aussenstehende: veroeffentlicht zum
+# Nachpruefen, nicht mit dem Versprechen einer stabilen API.
+
+[dependencies]
+argon2 = "0.5"
+chacha20poly1305 = { version = "0.10", features = ["std"] }
+rand = "0.8"
+zeroize = { version = "1.8", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+# JSON-Zwischenrepraesentation des Migrations-Frameworks.
+serde_json = "1"
+base64 = "0.22"
+# Fuer `created_at`-Default im Vault-Modell und `exported_at` im Backup-
+# Format (O-3 Schritt 3). Achtung fuer Schritt 5 (WASM, noch nicht
+# umgesetzt, siehe docs/decisions.md D8): `Utc::now()` braucht auf
+# wasm32-unknown-unknown das chrono-Feature "wasmbind" (js-sys::Date),
+# sonst Laufzeit-Panik statt Kompilierfehler. Codemouse-Fund PR #56 -
+# hier bewusst nicht vorgezogen, da kein wasm32-Build existiert; beim
+# Umsetzen von Schritt 5 nachziehen.
+chrono = { version = "0.4", features = ["serde"] }
+# Base32-Dekodierung fuer die Secret-Validierung, SHA-256 fuer die
+# Farbableitung aus Issuer/Label - beide reine Rechnung, kein IO.
+base32 = "0.5"
+sha2 = "0.10"
+# Parser fuer Fremdformate (otpauth-URIs, Google-Migration).
+percent-encoding = "2.3"
+url = "2.5"
+# Diagnose-Fassade; ohne Subscriber ein No-op und WASM-tauglich. Die
+# Importer melden damit uebersprungene Eintraege.
+tracing = "0.1"
+totp-rs = "5.7"
+thiserror = "2"
+# B-106: Unicode-NFC vor der Argon2-Ableitung. Ohne Normalisierung erzeugen
+# zwei visuell identische Passwoerter (NFC vs. NFD, je nach Tastatur/IME/
+# Passwort-Manager) verschiedene Byte-Folgen und damit verschiedene Keys.
+unicode-normalization = "0.1"
+
+[dev-dependencies]
+# Nur für die RFC-6238-Testvektoren (ASCII-Secret → Base32).
+base32 = "0.5"
